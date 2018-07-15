@@ -4,25 +4,24 @@
 body {
   font-size: 1em;
   background-color: #0ff;
-  background: #7d7e7d; /* Old browsers */
+  background: #7d7e7d /* Old browsers */;
   background: -moz-radial-gradient(
-    center,
-    ellipse cover,
-    #7d7e7d 0%,
-    #0e0e0e 100%
-  ); /* FF3.6-15 */
+      center,
+      ellipse cover,
+      #7d7e7d 0%,
+      #0e0e0e 100%
+    )
+    /* FF3.6-15 */;
   background: -webkit-radial-gradient(
-    center,
-    ellipse cover,
-    #7d7e7d 0%,
-    #0e0e0e 100%
-  ); /* Chrome10-25,Safari5.1-6 */
-  background: radial-gradient(
-    ellipse at center,
-    #7d7e7d 0%,
-    #0e0e0e 100%
-  ); /* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
+      center,
+      ellipse cover,
+      #7d7e7d 0%,
+      #0e0e0e 100%
+    )
+    /* Chrome10-25,Safari5.1-6 */;
+  background: radial-gradient(ellipse at center, #7d7e7d 0%, #0e0e0e 100%);
 }
+/* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
 main {
   display: flex;
   flex-direction: column;
@@ -52,10 +51,12 @@ main {
   heigh: 100%;
   padding: 0.4em;
 }
-.note textarea:focus {
+focus,
+.note textareafocus {
   outline: none;
   box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.2) inset;
 }
+.title,
 .note textarea.title {
   font-size: 1.5em;
   line-height: 1.2;
@@ -63,16 +64,10 @@ main {
   height: auto;
   margin-top: 20px;
 }
+.cnt,
 .note textarea.cnt {
   min-height: 200px;
 }
-.note:nth-child(2n) {
-  background: #faaaca;
-}
-.note:nth-child(3n) {
-  background: #69f098;
-}
-/* Button style  */
 .button {
   font: bold 1.25em Helvetica, Arial, sans-serif;
   color: #fff;
@@ -85,10 +80,10 @@ main {
   text-decoration: none;
   transition: all 1s;
 }
-.button:hover {
+.buttonhover {
   background-color: #0e0;
 }
-.button:active {
+.buttonactive {
   background: linear-gradient(bottom, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.3));
   background-color: #0c0;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 -1px 0 rgba(255, 255, 255, 0.3);
@@ -108,12 +103,12 @@ main {
   line-height: 16px;
   padding: 10px;
 }
-.button.remove:hover {
+.button.removehover {
   background-color: #ef4139;
 }
 #add_new {
   text-align: center;
 }
-::placeholder {
+placeholder {
   color: #999;
 }

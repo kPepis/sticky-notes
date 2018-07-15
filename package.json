@@ -1,0 +1,9 @@
+{
+  "name": "Sticky-notes",
+  "version": "0.0.1",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^5.1.0",
+    "stylus": "^0.54.5"
+  }
+}
