@@ -5,6 +5,8 @@ window.addEventListener("DOMContentLoaded", function() {
   /**
    * Creates a new empty note
    */
+  // todo Refactor function to accept arguments for creation date. The noteHtmlCode variable should be deleted and
+  // the HTML code template should be included inside here
   function createNewNote() {
     var board = document.querySelector("#board"); // select board
     var creationTxtToReplace = "replaceMeCreation"; // text to easily find where to append creation date
@@ -71,6 +73,8 @@ window.addEventListener("DOMContentLoaded", function() {
   /**
    * Updates the content stored in localStorage
    */
+  // todo this should save an object containing the notes info... not the HTML code itself. Notes then should be
+  // recreated using the info in this object when the page refreshes
   function updateLocalStorage() {
     localStorage.setItem(
       "noteContent",
