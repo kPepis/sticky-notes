@@ -5,8 +5,6 @@ window.addEventListener("DOMContentLoaded", function() {
   /**
    * Creates a new empty note
    */
-  // todo Refactor function to accept arguments for creation date. The noteHtmlCode variable should be deleted and
-  // the HTML code template should be included inside here
   function createNewNote() {
     var board = document.querySelector("#board"); // select board
     var creationTxtToReplace = "replaceMeCreation"; // text to easily find where to append creation date
@@ -17,7 +15,7 @@ window.addEventListener("DOMContentLoaded", function() {
 
     var currentDate = new Date(); // new Date instance
     var creationDate = "Note created on " + currentDate.toLocaleString(); // text to insert as creationDate
-    var lastEditDate = "Last edit on " + currentDate.toLocaleString();  // text to insert as lastEdit
+    var lastEditDate = "Last edit on " + currentDate.toLocaleString(); // text to insert as lastEdit
 
     // Complete string to insert in #board inner HTML code
     // This is where I would love to use template strings :(
