@@ -22,8 +22,25 @@ main
   flex-direction column
 
 #board
+  display: flex
+  flex-wrap: wrap
   padding 2.5em 2em
   flex-direction row
+  justify-content space-evenly
+
+#searchBox
+  font-size x-large
+  flex-grow: 1
+  border-radius 20px
+  padding-left  1em
+
+
+header
+  display: flex
+  justify-content: space-evenly
+
+header > *
+  margin .2em
 
 .note
   float left

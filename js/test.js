@@ -13,9 +13,9 @@ function Model() {
   };
 
   // Method to notify all observers
-  this.notifyAll = function(triggeringFn) {
+  this.notifyAll = function(triggeringFn, args) {
     context.observers.forEach(function(observer) {
-      observer.update(context, triggeringFn);
+      observer.update(context, triggeringFn, args);
     });
   };
 
@@ -34,11 +34,31 @@ function View(controller, stage) {
   var notesFactory = new NotesFactory();
 
   document.addEventListener("click", controller.handleEvent);
-  stage.addEventListener("change", controller.handleEvent);
+  document.addEventListener("change", controller.handleEvent);
+  document
+    .getElementById("searchBox")
+    .addEventListener("input", controller.handleEvent);
+  // stage.addEventListener(, );
 
   // noinspection JSUnusedGlobalSymbols
-  this.update = function(context, triggeringFn) {
+  this.update = function(context, triggeringFn, args) {
     var notesObject = context.getNotesData(); // syntax: notesObject[noteNumber][propertyName]
+
+    if (triggeringFn === "inputEvent") {
+      notesObject.forEach(function(note) {
+        //  select the note div
+        var noteDiv = document.querySelector('[data-id="' + note.index + '"]');
+        noteDiv.style.display = note.display;
+      });
+    }
+
+    if (triggeringFn === "changeEvent") {
+      // Update last edit field
+      var lastEditField = document.querySelector(
+        '[data-id="' + args + '"] .lastEdit'
+      );
+      lastEditField.value = notesObject[args].lastEditDate;
+    }
 
     if (triggeringFn === "addNoteToModel") {
       // Creates a note using only the last object in the notes array
@@ -84,6 +104,10 @@ function Controller(model) {
     if (e.type === "change") {
       context.changeHandler(e);
     }
+
+    if (e.type === "input") {
+      context.inputHandler(e);
+    }
   };
 
   this.updateLocalStorage = function() {
@@ -101,6 +125,17 @@ function Controller(model) {
     for (var i = 0; i < allNotes.length; i++) {
       allNotes[i].dataset["id"] = i.toString();
     }
+
+    var notesOject = model.getNotesData();
+    notesOject.forEach(function(note, idx) {
+      note.index = idx;
+    });
+
+    notesOject.sort(function(a, b) {
+      if (a.index > b.index) return 1;
+      if (a.index < b.index) return -1;
+      return 0;
+    });
   };
 
   // Function to run whenever a click event is registered
@@ -116,46 +151,67 @@ function Controller(model) {
         index: context.index++,
         // color: "color1",
         creationDate: creationDate,
-        lastEditDate: lastEditDate
+        lastEditDate: lastEditDate,
+        display: "inline-block"
       };
 
       model.addNoteToModel(note);
     }
+
+    this.inputHandler = function(ev) {
+      var notes = model.getNotesData();
+
+      // match only containing notes
+      var stringToMatch = ev.target.value;
+
+      notes.forEach(function(note) {
+        var found =
+          note.title.includes(stringToMatch) ||
+          note.content.includes(stringToMatch);
+
+        console.log(found);
+
+        if (found) {
+          note.display = "inline-block";
+          console.log("found", note.index);
+        } else {
+          note.display = "none";
+          console.log("not found", note.index);
+        }
+
+        model.notifyAll("inputEvent");
+      });
+    };
+
     // Function to run whenever a change event is registered
-    this.changeHandler = function(target) {
-      // new Date instance
-      var currentDate = new Date();
+    this.changeHandler = function(ev) {
+      var notes = model.getNotesData();
 
-      // string that will appear on textarea
-      var newDate = "Last edit on " + currentDate.toLocaleString();
+      if (ev.target.tagName === "TEXTAREA") {
+        // new Date instance
+        var currentDate = new Date();
 
-      // Check to see if the modified element was a textarea
-      if (target.srcElement.tagName === "TEXTAREA") {
-        var notes = model.getNotesData();
+        // string that will appear on textarea
+        var newDate = "Last edit on " + currentDate.toLocaleString();
 
-        // Select containing div of the textarea that triggered the changeEvent
-        var containingDivId =
-          target.srcElement.parentElement.parentElement.dataset["id"];
+        // Check to see if the modified element was a textarea
+        if (ev.srcElement.tagName === "TEXTAREA") {
+          // Select containing div of the textarea that triggered the changeEvent
+          var containingDivId =
+            ev.srcElement.parentElement.parentElement.dataset["id"];
 
-        if (target.srcElement.className === "title") {
-          notes[containingDivId].title = target.srcElement.value;
+          if (ev.srcElement.className === "title") {
+            notes[containingDivId].title = ev.srcElement.value;
+          }
+
+          if (ev.srcElement.className === "noteContent") {
+            notes[containingDivId].content = ev.srcElement.value;
+          }
+
+          notes[containingDivId].lastEditDate = newDate;
+          model.notifyAll("changeEvent", containingDivId);
+          context.updateLocalStorage();
         }
-
-        if (target.srcElement.className === "noteContent") {
-          notes[containingDivId].content = target.srcElement.value;
-        }
-
-        notes[containingDivId].lastEditDate = newDate;
-
-        console.log(target.srcElement.value);
-
-        model.notifyAll("changeEvent");
-        context.updateLocalStorage();
-        context.renderNotes(notes);
-
-        // notes[containingDivId].title =
-        // notes[containingDivId].content
-        // notes[containingDivId].lastEditDate
       }
     };
 
@@ -214,6 +270,60 @@ function NotesFactory() {
   };
 }
 
+// todo implement drag and drop
+function sortable(rootEl, onUpdate) {
+  var dragEl;
+
+  // Function responsible for sorting
+  function _onDragOver(evt) {
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = "move";
+
+    var target = evt.target;
+    console.log(target.nodeName);
+
+    if (target && target !== dragEl && target.nodeName === "DIV") {
+      // Sorting
+      rootEl.insertBefore(dragEl, target.nextSibling || target);
+    }
+  }
+
+  // End of sorting
+  function _onDragEnd(evt) {
+    evt.preventDefault();
+
+    dragEl.classList.remove("ghost");
+    rootEl.removeEventListener("dragover", _onDragOver, false);
+    rootEl.removeEventListener("dragend", _onDragEnd, false);
+
+    // Notification about the end of sorting
+    onUpdate(dragEl);
+  }
+
+  // Sorting starts
+  rootEl.addEventListener(
+    "dragstart",
+    function(evt) {
+      dragEl = evt.target; // Remembering an element that will be moved
+
+      // Limiting the movement type
+      evt.dataTransfer.effectAllowed = "move";
+      evt.dataTransfer.setData("Text", dragEl.textContent);
+
+      // Subscribing to the events at dnd
+      rootEl.addEventListener("dragover", _onDragOver, false);
+      rootEl.addEventListener("dragend", _onDragEnd, false);
+
+      setTimeout(function() {
+        // If this action is performed without setTimeout, then
+        // the moved object will be of this class.
+        dragEl.classList.add("ghost");
+      }, 0);
+    },
+    false
+  );
+}
+
 document.addEventListener("DOMContentLoaded", main);
 
 function main() {
@@ -229,4 +339,8 @@ function main() {
   notesController.renderNotes(previousNotes);
 
   window.addEventListener("beforeunload", notesController.updateLocalStorage); // save notes whenever page is closed
+
+  sortable(board, function(item) {
+    console.log(item);
+  });
 }

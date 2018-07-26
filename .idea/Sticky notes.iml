@@ -11,5 +11,6 @@
     <orderEntry type="library" name="@types/node" level="application" />
     <orderEntry type="library" name="@types/events" level="application" />
     <orderEntry type="library" name="@types/dom-inputevent" level="application" />
+    <orderEntry type="library" name="@types/sortablejs" level="application" />
   </component>
 </module>
