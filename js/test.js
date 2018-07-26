@@ -2,7 +2,6 @@
 function Model() {
   var context = this;
 
-  // var notes = data || [];
   var notes = [];
 
   // Collection of observers
@@ -35,6 +34,7 @@ function View(controller, stage) {
   var notesFactory = new NotesFactory();
 
   document.addEventListener("click", controller.handleEvent);
+  stage.addEventListener("change", controller.handleEvent);
 
   // noinspection JSUnusedGlobalSymbols
   this.update = function(context, triggeringFn) {
@@ -80,13 +80,17 @@ function Controller(model) {
     if (e.type === "click") {
       context.clickHandler(e);
     }
+
+    if (e.type === "change") {
+      context.changeHandler(e);
+    }
   };
 
   this.updateLocalStorage = function() {
     localStorage.setItem("notesObject", JSON.stringify(model.getNotesData()));
   };
 
-  this.restoreNotes = function(previousNotes) {
+  this.renderNotes = function(previousNotes) {
     previousNotes.forEach(function(note) {
       model.addNoteToModel(note);
     });
@@ -117,6 +121,43 @@ function Controller(model) {
 
       model.addNoteToModel(note);
     }
+    // Function to run whenever a change event is registered
+    this.changeHandler = function(target) {
+      // new Date instance
+      var currentDate = new Date();
+
+      // string that will appear on textarea
+      var newDate = "Last edit on " + currentDate.toLocaleString();
+
+      // Check to see if the modified element was a textarea
+      if (target.srcElement.tagName === "TEXTAREA") {
+        var notes = model.getNotesData();
+
+        // Select containing div of the textarea that triggered the changeEvent
+        var containingDivId =
+          target.srcElement.parentElement.parentElement.dataset["id"];
+
+        if (target.srcElement.className === "title") {
+          notes[containingDivId].title = target.srcElement.value;
+        }
+
+        if (target.srcElement.className === "noteContent") {
+          notes[containingDivId].content = target.srcElement.value;
+        }
+
+        notes[containingDivId].lastEditDate = newDate;
+
+        console.log(target.srcElement.value);
+
+        model.notifyAll("changeEvent");
+        context.updateLocalStorage();
+        context.renderNotes(notes);
+
+        // notes[containingDivId].title =
+        // notes[containingDivId].content
+        // notes[containingDivId].lastEditDate
+      }
+    };
 
     function deleteNote(clickedBtn) {
       var notes = model.getNotesData();
@@ -125,7 +166,6 @@ function Controller(model) {
       notes.splice(noteId, 1);
       clickedBtn.target.parentElement.remove(); // removes containing div element
       model.notifyAll("deleteNote");
-      // todo adjust indexes of affected objects
     }
 
     // Classes with associated functions
@@ -186,7 +226,7 @@ function main() {
 
   // notesObject is stored as a string, so we need to parse it as JSON and restore the notes with that object
   var previousNotes = JSON.parse(localStorage.getItem("notesObject"));
-  notesController.restoreNotes(previousNotes);
+  notesController.renderNotes(previousNotes);
 
   window.addEventListener("beforeunload", notesController.updateLocalStorage); // save notes whenever page is closed
 }
