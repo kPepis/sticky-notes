@@ -1,109 +1,233 @@
-/**
- * Code is isolated in DOMContentLoad event
- */
-window.addEventListener("DOMContentLoaded", function() {
-  /**
-   * Creates a new empty note
-   */
-  function createNewNote() {
-    var board = document.querySelector("#board"); // select board
-    var creationTxtToReplace = "replaceMeCreation"; // text to easily find where to append creation date
-    var editTxtToReplace = "replaceMeEdit"; // text to easily find where to append edit date
-    var creationDateTextIndex = noteHtmlCode.search(creationTxtToReplace); // index where creationDate should be
-    var lastEditTextIndex = noteHtmlCode.search(editTxtToReplace); // index where lastEdit should be
-    var helper = creationDateTextIndex + creationTxtToReplace.length; // make code easier to read
+// Model snippet
+function Model() {
+  var context = this;
 
-    var currentDate = new Date(); // new Date instance
-    var creationDate = "Note created on " + currentDate.toLocaleString(); // text to insert as creationDate
-    var lastEditDate = "Last edit on " + currentDate.toLocaleString(); // text to insert as lastEdit
+  var notes = [];
 
-    // Complete string to insert in #board inner HTML code
-    // This is where I would love to use template strings :(
-    board.innerHTML +=
-      noteHtmlCode.substring(0, creationDateTextIndex) +
-      creationDate +
-      "</textarea>" +
-      noteHtmlCode.substring(helper + "</textarea>".length, lastEditTextIndex) +
-      lastEditDate +
-      noteHtmlCode.substring(lastEditTextIndex + editTxtToReplace.length);
-  }
+  // Collection of observers
+  this.observers = [];
 
-  /**
-   * Deletes a note
-   * @param clickedBtn Button associated with the noteDiv that will be deleted
-   * todo Check how to implement this in IE
-   */
-  function deleteNote(clickedBtn) {
-    // Remove the parentElement of the remove button, which is the div containing the note formatting
-    clickedBtn.target.parentElement.remove();
-  }
+  // Adds an observer to the collection
+  this.registerObserver = function(observer) {
+    context.observers.push(observer);
+  };
 
-  /**
-   * Check if storage is available (code from MDN)
-   * @param type The type of storage you want to check for. Possible values: "localStorage" or "sessionStorage".
-   * @returns {boolean}
-   */
-  function storageAvailable(type) {
-    try {
-      var storage = window[type],
-        x = "__storage_test__";
-      storage.setItem(x, x);
-      storage.removeItem(x);
-      return true;
-    } catch (e) {
-      return (
-        e instanceof DOMException &&
-        // everything except Firefox
-        (e.code === 22 ||
-          // Firefox
-          e.code === 1014 ||
-          // test name field too, because code might not be present
-          // everything except Firefox
-          e.name === "QuotaExceededError" ||
-          // Firefox
-          e.name === "NS_ERROR_DOM_QUOTA_REACHED") &&
-        // acknowledge QuotaExceededError only if there's something already stored
-        storage.length !== 0
+  // Method to notify all observers
+  this.notifyAll = function(triggeringFn, args) {
+    context.observers.forEach(function(observer) {
+      observer.update(context, triggeringFn, args);
+    });
+  };
+
+  this.getNotesData = function() {
+    return notes;
+  };
+
+  this.addNoteToModel = function(note) {
+    notes.push(note);
+    context.notifyAll("addNoteToModel");
+  };
+
+  Array.prototype.move = function(from, to) {
+    this.splice(to, 0, this.splice(from, 1)[0]);
+  };
+}
+
+// View snippet
+function View(controller, stage) {
+  var notesFactory = new NotesFactory();
+
+  document.addEventListener("click", controller.handleEvent);
+  document.addEventListener("change", controller.handleEvent);
+  document
+    .getElementById("searchBox")
+    .addEventListener("input", controller.handleEvent);
+  // stage.addEventListener(, );
+
+  // noinspection JSUnusedGlobalSymbols
+  this.update = function(context, triggeringFn, args) {
+    var notesObject = context.getNotesData(); // syntax: notesObject[noteNumber][propertyName]
+
+    if (triggeringFn === "inputEvent") {
+      notesObject.forEach(function(note) {
+        //  select the note div
+        // noinspection JSCheckFunctionSignatures
+        var noteDiv = document.querySelector('[data-id="' + note.index + '"]');
+        noteDiv.style.display = note.display;
+      });
+    }
+
+    if (triggeringFn === "changeEvent") {
+      // Update last edit field
+      // noinspection JSCheckFunctionSignatures
+      var lastEditField = document.querySelector(
+        '[data-id="' + args + '"] .lastEdit'
       );
+      lastEditField.value = notesObject[args].lastEditDate;
     }
-  }
 
-  /**
-   * Updates the content stored in localStorage
-   */
-  // todo this should save an object containing the notes info... not the HTML code itself. Notes then should be
-  // recreated using the info in this object when the page refreshes
-  function updateLocalStorage() {
-    localStorage.setItem(
-      "noteContent",
-      document.querySelector("#board").innerHTML
-    );
-  }
+    if (triggeringFn === "addNoteToModel") {
+      // Creates a note using only the last object in the notes array
+      var noteToAppend = notesFactory.create(
+        notesObject[notesObject.length - 1]
+      );
 
-  // HTML code to be inserted as a new note
-  var noteHtmlCode =
-    '<div class="note">' +
-    '<a href="javascript:" class="button remove">x</a>' +
-    '<div class="note_cnt">' +
-    '<textarea class="title" placeholder="Enter note title" cols="auto" rows="auto"></textarea>' +
-    '<textarea class="noteContent" placeholder="Enter note text here"></textarea>' +
-    '<textarea name="creationDate" readonly class="creationDate">replaceMeCreation</textarea>' +
-    '<textarea name="lastEdit" readonly class="lastEdit">replaceMeEdit</textarea>' +
-    "</div>" +
-    "</div>";
+      // Appends the newly created note to the HTML element defined as stage
+      stage.appendChild(noteToAppend);
 
-  // Check if there are any existing notes in localStorage
-  if (storageAvailable("localStorage")) {
-    if (localStorage.getItem("noteContent")) {
-      var board = document.querySelector("#board"); // select board
-      board.innerHTML += localStorage.getItem("noteContent"); // restore previous notes
+      controller.updateNotesIndexes();
     }
-  }
 
-  /**
-   * Event listener used for clicks. Calls corresponding function according to the type of button that was pressed
-   */
-  document.addEventListener("click", function(ev) {
+    if (triggeringFn === "deleteNote") {
+      //  update model index
+      notesObject.forEach(function(obj, idx) {
+        obj.index = idx;
+      });
+      controller.index = Math.max(notesObject.length - 1, 0);
+
+      // update data-id attr in html. This is the property deleteNote gets and deletes the appropiate index in the model
+      controller.updateNotesIndexes();
+    }
+  };
+
+  controller.model.registerObserver(this);
+}
+
+// Controller snippet
+function Controller(model) {
+  var context = this;
+  this.index = 0;
+  this.model = model;
+
+  //  Event listener interface
+  this.handleEvent = function(e) {
+    e.stopPropagation();
+
+    if (e.type === "click") {
+      context.clickHandler(e);
+    }
+
+    if (e.type === "change") {
+      context.changeHandler(e);
+    }
+
+    if (e.type === "input") {
+      context.inputHandler(e);
+    }
+  };
+
+  this.updateLocalStorage = function() {
+    localStorage.setItem("notesObject", JSON.stringify(model.getNotesData()));
+  };
+
+  this.renderNotes = function(previousNotes) {
+    previousNotes.forEach(function(note) {
+      model.addNoteToModel(note);
+    });
+  };
+
+  this.updateNotesIndexes = function() {
+    var allNotes = document.getElementsByClassName("note");
+    var notesObject = model.getNotesData();
+
+    for (var i = 0; i < allNotes.length; i++) {
+      allNotes[i].dataset["id"] = i.toString();
+    }
+
+    notesObject.forEach(function(note, idx) {
+      note.index = idx;
+    });
+
+    notesObject.sort(function(a, b) {
+      if (a.index > b.index) return 1;
+      if (a.index < b.index) return -1;
+      return 0;
+    });
+  };
+
+  // Function to run whenever a click event is registered
+  this.clickHandler = function(target) {
+    function createNewNote() {
+      var currentDate = new Date();
+      var creationDate = "Note created on " + currentDate.toLocaleString(); // text to insert as creationDate
+      var lastEditDate = "Last edit on " + currentDate.toLocaleString(); // text to insert as lastEdit
+
+      var note = {
+        title: "",
+        content: "",
+        index: context.index++,
+        // color: "color1",
+        creationDate: creationDate,
+        lastEditDate: lastEditDate,
+        display: "inline-block"
+      };
+
+      model.addNoteToModel(note);
+    }
+
+    this.inputHandler = function(ev) {
+      var notes = model.getNotesData();
+
+      // match only containing notes
+      var stringToMatch = ev.target.value;
+
+      notes.forEach(function(note) {
+        var found =
+          note.title.includes(stringToMatch) ||
+          note.content.includes(stringToMatch);
+
+
+        if (found) {
+          note.display = "inline-block";
+        } else {
+          note.display = "none";
+        }
+
+        model.notifyAll("inputEvent");
+      });
+    };
+
+    // Function to run whenever a change event is registered
+    this.changeHandler = function(ev) {
+      var notes = model.getNotesData();
+
+      if (ev.target.tagName === "TEXTAREA") {
+        // new Date instance
+        var currentDate = new Date();
+
+        // string that will appear on textarea
+        var newDate = "Last edit on " + currentDate.toLocaleString();
+
+        // Check to see if the modified element was a textarea
+        if (ev.srcElement.tagName === "TEXTAREA") {
+          // Select containing div of the textarea that triggered the changeEvent
+          var containingDivId =
+            ev.srcElement.parentElement.parentElement.dataset["id"];
+
+          if (ev.srcElement.className === "title") {
+            notes[containingDivId].title = ev.srcElement.value;
+          }
+
+          if (ev.srcElement.className === "noteContent") {
+            notes[containingDivId].content = ev.srcElement.value;
+          }
+
+          notes[containingDivId].lastEditDate = newDate;
+          model.notifyAll("changeEvent", containingDivId);
+          context.updateLocalStorage();
+        }
+      }
+    };
+
+    function deleteNote(clickedBtn) {
+      var notes = model.getNotesData();
+      var noteId = clickedBtn.target.parentElement.dataset["id"];
+      // Remove from model
+      notes.splice(noteId, 1);
+      clickedBtn.target.parentElement.remove(); // removes containing div element
+      model.notifyAll("deleteNote");
+    }
+
     // Classes with associated functions
     var typeOfEvents = {
       "button add": createNewNote,
@@ -111,42 +235,116 @@ window.addEventListener("DOMContentLoaded", function() {
     };
 
     // Store class name of the clicked element
-    var evClass = ev.srcElement.className;
+    var evClass = target.srcElement.className;
 
-    // Execute function depending on the class of the element that was clicked
-    if (typeOfEvents.hasOwnProperty(evClass)) typeOfEvents[evClass](ev);
-  });
-
-  /**
-   * Saves edits on notes whenever they are changed
-   */
-  document.addEventListener("change", function(ev) {
-    // new Date instance
-    var currentDate = new Date();
-
-    // string that will appear on textarea
-    var lastEditDate = "Last edit on " + currentDate.toLocaleString();
-
-    // Check to see if the modified element was a textarea
-    if (ev.srcElement.tagName === "TEXTAREA") {
-      // update the textarea content
-      ev.srcElement.innerHTML = ev.target.value;
-
-      // Get lastEdit element
-      var lastEditTxtarea = ev.srcElement.parentElement.getElementsByClassName(
-        "lastEdit"
-      );
-
-      // update lastEditDate
-      lastEditTxtarea[0].innerHTML = lastEditDate;
-
-      // update localStorage
-      updateLocalStorage();
+    // Execute function depending on the class of the element that was clicked and notify observer
+    if (typeOfEvents.hasOwnProperty(evClass)) {
+      typeOfEvents[evClass](target);
+      // context.model.notifyAll();
     }
-  });
 
-  /**
-   * Event listener to save current notes and their content whenever browser is closed.
-   */
-  window.addEventListener("beforeunload", updateLocalStorage);
-});
+    this.model.data = "";
+  };
+}
+
+function NotesFactory() {
+  this.create = function(note) {
+    var htmlNoteDiv = document.createElement("div");
+    htmlNoteDiv.className = "note";
+    htmlNoteDiv.draggable = true;
+    htmlNoteDiv.innerHTML =
+      '<a href="javascript:" class="button remove">x</a>' +
+      '<div class="note_cnt">' +
+      '<textarea class="title" placeholder="Enter note title" cols="auto" rows="auto">' +
+      note["title"] +
+      "</textarea>" +
+      '<textarea class="noteContent" placeholder="Enter note text here">' +
+      note["content"] +
+      "</textarea>" +
+      '<textarea name="creationDate" readonly class="creationDate">' +
+      note["creationDate"] +
+      "</textarea>" +
+      '<textarea name="lastEdit" readonly class="lastEdit">' +
+      note["lastEditDate"] +
+      "</textarea>" +
+      "</div>";
+
+    htmlNoteDiv.dataset["id"] = note.index;
+    return htmlNoteDiv;
+  };
+}
+
+function sortable(rootEl, onUpdate, notesObject) {
+  var dragEl;
+  var fromPosition;
+
+  // Function responsible for sorting
+  function _onDragOver(evt) {
+    evt.preventDefault();
+  }
+
+  // End of sorting
+  function _onDrop(evt) {
+    evt.preventDefault();
+
+    var target = evt.target;
+
+    dragEl.classList.remove("ghost");
+    rootEl.removeEventListener("dragover", _onDragOver, false);
+    rootEl.removeEventListener("drop", _onDrop, false);
+
+    // Drop the element
+    if (target && target !== dragEl) rootEl.insertBefore(dragEl, target);
+
+    // Notification about the end of sorting
+    onUpdate.forEach(function(item) {
+      item();
+    });
+
+    var targetPosition = parseInt(target.dataset["id"]);
+
+    notesObject.move(fromPosition, targetPosition-1);
+  }
+
+  // Sorting starts
+  rootEl.addEventListener(
+    "dragstart",
+    function(evt) {
+      dragEl = evt.target; // Remembering an element that will be moved
+      fromPosition = parseInt(evt.target.dataset["id"]);
+      // console.log(evt.target.dataset["id"]);
+      // console.log(dragEl);
+
+      // Limiting the movement type
+      evt.dataTransfer.effectAllowed = "move";
+      evt.dataTransfer.setData("text/html", dragEl);
+
+      // Add class for custom styling of element while dragging
+      dragEl.classList.add("ghost");
+
+      // Subscribing to the events at dnd
+      rootEl.addEventListener("dragover", _onDragOver, false);
+      rootEl.addEventListener("drop", _onDrop, false);
+    },
+    false
+  );
+}
+
+document.addEventListener("DOMContentLoaded", main);
+
+function main() {
+  // Select the #board div, which will be the stage for our view component (where the model changes will be reflected)
+  var board = document.getElementById("board");
+
+  var notesModel = new Model(); // this is the model which will control the sticky notes
+  var notesController = new Controller(notesModel); // register the model to a new controller
+  new View(notesController, board); // register the controller to a view and set a stage
+
+  // notesObject is stored as a string, so we need to parse it as JSON and restore the notes with that object
+  var previousNotes = JSON.parse(localStorage.getItem("notesObject"));
+  notesController.renderNotes(previousNotes);
+
+  window.addEventListener("beforeunload", notesController.updateLocalStorage); // save notes whenever page is closed
+
+  sortable(board, [notesController.updateNotesIndexes], notesModel.getNotesData());
+}
