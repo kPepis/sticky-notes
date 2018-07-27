@@ -27,6 +27,10 @@ function Model() {
     notes.push(note);
     context.notifyAll("addNoteToModel");
   };
+
+  Array.prototype.move = function(from, to) {
+    this.splice(to, 0, this.splice(from, 1)[0]);
+  };
 }
 
 // View snippet
@@ -47,6 +51,7 @@ function View(controller, stage) {
     if (triggeringFn === "inputEvent") {
       notesObject.forEach(function(note) {
         //  select the note div
+        // noinspection JSCheckFunctionSignatures
         var noteDiv = document.querySelector('[data-id="' + note.index + '"]');
         noteDiv.style.display = note.display;
       });
@@ -54,6 +59,7 @@ function View(controller, stage) {
 
     if (triggeringFn === "changeEvent") {
       // Update last edit field
+      // noinspection JSCheckFunctionSignatures
       var lastEditField = document.querySelector(
         '[data-id="' + args + '"] .lastEdit'
       );
@@ -122,16 +128,17 @@ function Controller(model) {
 
   this.updateNotesIndexes = function() {
     var allNotes = document.getElementsByClassName("note");
+    var notesObject = model.getNotesData();
+
     for (var i = 0; i < allNotes.length; i++) {
       allNotes[i].dataset["id"] = i.toString();
     }
 
-    var notesOject = model.getNotesData();
-    notesOject.forEach(function(note, idx) {
+    notesObject.forEach(function(note, idx) {
       note.index = idx;
     });
 
-    notesOject.sort(function(a, b) {
+    notesObject.sort(function(a, b) {
       if (a.index > b.index) return 1;
       if (a.index < b.index) return -1;
       return 0;
@@ -169,14 +176,11 @@ function Controller(model) {
           note.title.includes(stringToMatch) ||
           note.content.includes(stringToMatch);
 
-        console.log(found);
 
         if (found) {
           note.display = "inline-block";
-          console.log("found", note.index);
         } else {
           note.display = "none";
-          console.log("not found", note.index);
         }
 
         model.notifyAll("inputEvent");
@@ -271,33 +275,36 @@ function NotesFactory() {
 }
 
 // todo implement drag and drop
-function sortable(rootEl, onUpdate) {
+function sortable(rootEl, onUpdate, notesObject) {
   var dragEl;
+  var fromPosition;
 
   // Function responsible for sorting
   function _onDragOver(evt) {
     evt.preventDefault();
-    evt.dataTransfer.dropEffect = "move";
-
-    var target = evt.target;
-    console.log(target.nodeName);
-
-    if (target && target !== dragEl && target.nodeName === "DIV") {
-      // Sorting
-      rootEl.insertBefore(dragEl, target.nextSibling || target);
-    }
   }
 
   // End of sorting
-  function _onDragEnd(evt) {
+  function _onDrop(evt) {
     evt.preventDefault();
+
+    var target = evt.target;
 
     dragEl.classList.remove("ghost");
     rootEl.removeEventListener("dragover", _onDragOver, false);
-    rootEl.removeEventListener("dragend", _onDragEnd, false);
+    rootEl.removeEventListener("drop", _onDrop, false);
+
+    // Drop the element
+    if (target && target !== dragEl) rootEl.insertBefore(dragEl, target);
 
     // Notification about the end of sorting
-    onUpdate(dragEl);
+    onUpdate.forEach(function(item) {
+      item();
+    });
+
+    var targetPosition = parseInt(target.dataset["id"]);
+
+    notesObject.move(fromPosition, targetPosition-1);
   }
 
   // Sorting starts
@@ -305,20 +312,20 @@ function sortable(rootEl, onUpdate) {
     "dragstart",
     function(evt) {
       dragEl = evt.target; // Remembering an element that will be moved
+      fromPosition = parseInt(evt.target.dataset["id"]);
+      // console.log(evt.target.dataset["id"]);
+      // console.log(dragEl);
 
       // Limiting the movement type
       evt.dataTransfer.effectAllowed = "move";
-      evt.dataTransfer.setData("Text", dragEl.textContent);
+      evt.dataTransfer.setData("text/html", dragEl);
+
+      // Add class for custom styling of element while dragging
+      dragEl.classList.add("ghost");
 
       // Subscribing to the events at dnd
       rootEl.addEventListener("dragover", _onDragOver, false);
-      rootEl.addEventListener("dragend", _onDragEnd, false);
-
-      setTimeout(function() {
-        // If this action is performed without setTimeout, then
-        // the moved object will be of this class.
-        dragEl.classList.add("ghost");
-      }, 0);
+      rootEl.addEventListener("drop", _onDrop, false);
     },
     false
   );
@@ -340,7 +347,5 @@ function main() {
 
   window.addEventListener("beforeunload", notesController.updateLocalStorage); // save notes whenever page is closed
 
-  sortable(board, function(item) {
-    console.log(item);
-  });
+  sortable(board, [notesController.updateNotesIndexes], notesModel.getNotesData());
 }
