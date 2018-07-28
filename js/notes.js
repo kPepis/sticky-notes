@@ -2,10 +2,18 @@
 function Model() {
   var context = this;
 
-  var notes = [];
+  this.notes = [];
 
   // Collection of observers
   this.observers = [];
+
+  this.undoManager = function() {
+    var stack = [];
+
+    // addToStack = function() {
+    //
+    // }
+  };
 
   // Adds an observer to the collection
   this.registerObserver = function(observer) {
@@ -20,11 +28,11 @@ function Model() {
   };
 
   this.getNotesData = function() {
-    return notes;
+    return context.notes;
   };
 
   this.addNoteToModel = function(note) {
-    notes.push(note);
+    context.notes.push(note);
     context.notifyAll("addNoteToModel");
   };
 
@@ -98,11 +106,14 @@ function Controller(model) {
   var context = this;
   this.index = 0;
   this.model = model;
+  this.undoStack = [];
+  this.lastEditedNoteValue = "";
+  this.lastEditedNoteTitle = "";
+  this.lastEditedNoteIndex = 0;
 
   //  Event listener interface
   this.handleEvent = function(e) {
     e.stopPropagation();
-
     if (e.type === "click") {
       context.clickHandler(e);
     }
@@ -121,6 +132,13 @@ function Controller(model) {
   };
 
   this.renderNotes = function(previousNotes) {
+    var board = document.getElementById("board");
+    while (board.firstChild) {
+      board.removeChild(board.firstChild);
+    }
+
+    model.notes = [];
+
     previousNotes.forEach(function(note) {
       model.addNoteToModel(note);
     });
@@ -147,6 +165,16 @@ function Controller(model) {
 
   // Function to run whenever a click event is registered
   this.clickHandler = function(target) {
+    if (target.target.className === "noteContent") {
+      console.log(context.lastEditedNoteValue);
+      context.lastEditedNoteValue = target.target.value;
+    }
+    if (target.target.className === "title") {
+      context.lastEditedNoteTitle = target.target.value;
+      console.log(context.lastEditedNoteTitle);
+
+    }
+
     function createNewNote() {
       var currentDate = new Date();
       var creationDate = "Note created on " + currentDate.toLocaleString(); // text to insert as creationDate
@@ -163,6 +191,33 @@ function Controller(model) {
       };
 
       model.addNoteToModel(note);
+      context.undoStack.push(deleteNote);
+    }
+
+    function undoLastAction() {
+      var lastAction = context.undoStack.pop();
+      var reverseFunctions = {
+        recreateNote: createNewNote
+      };
+
+      if (typeof lastAction === "function") lastAction();
+
+      var notes = model.getNotesData();
+
+      if (lastAction === "recreateNote") {
+        notes.splice(context.lastDeletedNote.index, 0, context.lastDeletedNote);
+        context.updateNotesIndexes();
+        context.renderNotes(notes);
+      }
+
+      if (lastAction === "undoEdit") {
+        notes = model.getNotesData();
+        console.log(context.lastEditedNoteIndex, context.lastEditedNoteValue);
+
+        notes[context.lastEditedNoteIndex].content =
+          context.lastEditedNoteValue;
+        notes[context.lastEditedNoteIndex].title = context.lastEditedNoteTitle;
+      }
     }
 
     this.inputHandler = function(ev) {
@@ -176,7 +231,6 @@ function Controller(model) {
           note.title.includes(stringToMatch) ||
           note.content.includes(stringToMatch);
 
-
         if (found) {
           note.display = "inline-block";
         } else {
@@ -185,6 +239,14 @@ function Controller(model) {
 
         model.notifyAll("inputEvent");
       });
+    };
+
+    this.focusHandler = function(ev) {
+      var containingDivId =
+        ev.srcElement.parentElement.parentElement.dataset["id"];
+
+      context.lastEditedNoteValue = ev.srcElement.value;
+      context.lastEditedNoteIndex = containingDivId;
     };
 
     // Function to run whenever a change event is registered
@@ -212,8 +274,13 @@ function Controller(model) {
             notes[containingDivId].content = ev.srcElement.value;
           }
 
+          // context.lastEditedNoteValue = ev.srcElement.value;
+          // context.lastEditedNoteIndex = containingDivId;
+
           notes[containingDivId].lastEditDate = newDate;
           model.notifyAll("changeEvent", containingDivId);
+
+          context.undoStack.push("undoEdit");
           context.updateLocalStorage();
         }
       }
@@ -221,27 +288,40 @@ function Controller(model) {
 
     function deleteNote(clickedBtn) {
       var notes = model.getNotesData();
-      var noteId = clickedBtn.target.parentElement.dataset["id"];
-      // Remove from model
-      notes.splice(noteId, 1);
-      clickedBtn.target.parentElement.remove(); // removes containing div element
+      var noteId;
+      var toRemove;
+      // clickedBtn
+      //   ? (noteId = clickedBtn.target.parentElement.dataset["id"])
+      //   : notes.length - 1;
+      if (clickedBtn) {
+        noteId = clickedBtn.target.parentElement.dataset["id"];
+        toRemove = clickedBtn.target.parentElement;
+      } else {
+        var notesNodes = document.querySelectorAll(".note");
+        toRemove = notesNodes[notesNodes.length - 1];
+        noteId = notes.length - 1;
+      }
+
+      context.lastDeletedNote = notes[noteId];
+
+      notes.splice(noteId, 1); // updates notes object
+      toRemove.remove(); // updates DOM
       model.notifyAll("deleteNote");
+      context.undoStack.push("recreateNote");
     }
 
     // Classes with associated functions
     var typeOfEvents = {
       "button add": createNewNote,
-      "button remove": deleteNote
+      "button remove": deleteNote,
+      "button undo": undoLastAction
     };
 
     // Store class name of the clicked element
     var evClass = target.srcElement.className;
 
     // Execute function depending on the class of the element that was clicked and notify observer
-    if (typeOfEvents.hasOwnProperty(evClass)) {
-      typeOfEvents[evClass](target);
-      // context.model.notifyAll();
-    }
+    if (typeOfEvents.hasOwnProperty(evClass)) typeOfEvents[evClass](target);
 
     this.model.data = "";
   };
@@ -303,7 +383,7 @@ function sortable(rootEl, onUpdate, notesObject) {
 
     var targetPosition = parseInt(target.dataset["id"]);
 
-    notesObject.move(fromPosition, targetPosition-1);
+    notesObject.move(fromPosition, targetPosition - 1);
   }
 
   // Sorting starts
@@ -325,6 +405,7 @@ function sortable(rootEl, onUpdate, notesObject) {
       // Subscribing to the events at dnd
       rootEl.addEventListener("dragover", _onDragOver, false);
       rootEl.addEventListener("drop", _onDrop, false);
+      console.log("dragstart");
     },
     false
   );
@@ -346,5 +427,9 @@ function main() {
 
   window.addEventListener("beforeunload", notesController.updateLocalStorage); // save notes whenever page is closed
 
-  sortable(board, [notesController.updateNotesIndexes], notesModel.getNotesData());
+  sortable(
+    board,
+    [notesController.updateNotesIndexes],
+    notesModel.getNotesData()
+  );
 }
