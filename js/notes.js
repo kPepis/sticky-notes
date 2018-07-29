@@ -7,14 +7,6 @@ function Model() {
   // Collection of observers
   this.observers = [];
 
-  this.undoManager = function() {
-    var stack = [];
-
-    // addToStack = function() {
-    //
-    // }
-  };
-
   // Adds an observer to the collection
   this.registerObserver = function(observer) {
     context.observers.push(observer);
@@ -109,7 +101,9 @@ function Controller(model) {
   this.undoStack = [];
   this.lastEditedNoteValue = "";
   this.lastEditedNoteTitle = "";
-  this.lastEditedNoteIndex = 0;
+  this.lastChangeIndex = 0;
+  this.revertMoveFrom = 0;
+  this.revertMoveTarget = 0;
 
   //  Event listener interface
   this.handleEvent = function(e) {
@@ -165,14 +159,18 @@ function Controller(model) {
 
   // Function to run whenever a click event is registered
   this.clickHandler = function(target) {
-    if (target.target.className === "noteContent") {
-      console.log(context.lastEditedNoteValue);
+    var className = target.target.className;
+    if (className === "noteContent") {
+      context.lastChangeIndex =
+        target.target.parentElement.parentElement.dataset["id"];
+      context.lastEditedNoteTitle = target.target.previousSibling.value;
       context.lastEditedNoteValue = target.target.value;
     }
-    if (target.target.className === "title") {
+    if (className === "title") {
+      context.lastChangeIndex =
+        target.target.parentElement.parentElement.dataset["id"];
       context.lastEditedNoteTitle = target.target.value;
-      console.log(context.lastEditedNoteTitle);
-
+      context.lastEditedNoteValue = target.target.nextSibling.value;
     }
 
     function createNewNote() {
@@ -196,9 +194,6 @@ function Controller(model) {
 
     function undoLastAction() {
       var lastAction = context.undoStack.pop();
-      var reverseFunctions = {
-        recreateNote: createNewNote
-      };
 
       if (typeof lastAction === "function") lastAction();
 
@@ -211,12 +206,15 @@ function Controller(model) {
       }
 
       if (lastAction === "undoEdit") {
-        notes = model.getNotesData();
-        console.log(context.lastEditedNoteIndex, context.lastEditedNoteValue);
+        notes[context.lastChangeIndex].content = context.lastEditedNoteValue;
+        notes[context.lastChangeIndex].title = context.lastEditedNoteTitle;
+        context.updateLocalStorage();
+        context.renderNotes(notes);
+      }
 
-        notes[context.lastEditedNoteIndex].content =
-          context.lastEditedNoteValue;
-        notes[context.lastEditedNoteIndex].title = context.lastEditedNoteTitle;
+      if (lastAction === "undoMove") {
+        notes.move(context.revertMoveFrom, context.revertMoveTarget);
+        context.renderNotes(notes);
       }
     }
 
@@ -239,14 +237,6 @@ function Controller(model) {
 
         model.notifyAll("inputEvent");
       });
-    };
-
-    this.focusHandler = function(ev) {
-      var containingDivId =
-        ev.srcElement.parentElement.parentElement.dataset["id"];
-
-      context.lastEditedNoteValue = ev.srcElement.value;
-      context.lastEditedNoteIndex = containingDivId;
     };
 
     // Function to run whenever a change event is registered
@@ -378,11 +368,14 @@ function sortable(rootEl, onUpdate, notesObject) {
 
     // Notification about the end of sorting
     onUpdate.forEach(function(item) {
-      item();
+      if (typeof item === "function") item();
+      else item.undoStack.push("undoMove");
     });
 
     var targetPosition = parseInt(target.dataset["id"]);
 
+    onUpdate[1].revertMoveFrom = targetPosition - 1;
+    onUpdate[1].revertMoveTarget = fromPosition;
     notesObject.move(fromPosition, targetPosition - 1);
   }
 
@@ -405,7 +398,6 @@ function sortable(rootEl, onUpdate, notesObject) {
       // Subscribing to the events at dnd
       rootEl.addEventListener("dragover", _onDragOver, false);
       rootEl.addEventListener("drop", _onDrop, false);
-      console.log("dragstart");
     },
     false
   );
@@ -429,7 +421,7 @@ function main() {
 
   sortable(
     board,
-    [notesController.updateNotesIndexes],
+    [notesController.updateNotesIndexes, notesController],
     notesModel.getNotesData()
   );
 }
